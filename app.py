@@ -1,7 +1,14 @@
+import os
 from flask import Flask, request, render_template_string
 import requests
+from supabase import create_client
 
 app = Flask(__name__)
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
 def get_client_ip():
@@ -21,6 +28,20 @@ def get_ip_info(ip):
         return {}
 
 
+def save_ip_log(ip, country, city, isp):
+    user_agent = request.headers.get("user-agent", "No detectado")
+
+    data = {
+        "ip": ip,
+        "country": country,
+        "city": city,
+        "isp": isp,
+        "user_agent": user_agent
+    }
+
+    supabase.table("ip_logs").insert(data).execute()
+
+
 @app.route("/")
 def home():
     ip = get_client_ip()
@@ -30,49 +51,21 @@ def home():
     city = info.get("city", "No detectada")
     isp = info.get("org", "No detectado")
 
+    save_ip_log(ip, country, city, isp)
+
     return render_template_string("""
     <!DOCTYPE html>
     <html lang="es">
     <head>
         <meta charset="UTF-8">
         <title>Detector de IP</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                background: #f4f4f4;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                min-height: 100vh;
-                margin: 0;
-            }
-
-            .card {
-                background: white;
-                padding: 25px;
-                border: 1px solid #ddd;
-                border-radius: 10px;
-                width: 320px;
-            }
-
-            h1 {
-                font-size: 22px;
-                margin-bottom: 15px;
-            }
-
-            p {
-                margin: 8px 0;
-            }
-        </style>
     </head>
     <body>
-        <div class="card">
-            <h1>Datos aproximados</h1>
-            <p><strong>IP:</strong> {{ ip }}</p>
-            <p><strong>País:</strong> {{ country }}</p>
-            <p><strong>Ciudad:</strong> {{ city }}</p>
-            <p><strong>Proveedor:</strong> {{ isp }}</p>
-        </div>
+        <h1>Datos aproximados</h1>
+        <p><strong>IP:</strong> {{ ip }}</p>
+        <p><strong>País:</strong> {{ country }}</p>
+        <p><strong>Ciudad:</strong> {{ city }}</p>
+        <p><strong>Proveedor:</strong> {{ isp }}</p>
     </body>
     </html>
     """, ip=ip, country=country, city=city, isp=isp)
